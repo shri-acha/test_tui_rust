@@ -9,7 +9,7 @@ use ratatui::{self,
         prelude::{Constraint,Direction,Layout},
         style::{Modifier,self,Style,Color},
     };
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io;
 
 
@@ -26,7 +26,7 @@ struct App {
     monitoring_dir: String,
     dir_buffer: String,
     ext_buffer: String,
-    file_dir_map:  HashMap<String,Vec<String>>,
+    file_dir_map:  BTreeMap<String,Vec<String>>,
 
     focused_field: FocusedField,
     exit: bool,
@@ -145,7 +145,7 @@ impl App {
             FocusedField::LwrMiniButton => {
                 match key_code{
                     crossterm::event::KeyCode::Enter=> {
-                        self.file_dir_map.remove();
+                        let _ = self.file_dir_map.pop_last();
                     }
                     _=>{ 
                         //Don't require any more bindings (as of now)
@@ -339,7 +339,7 @@ impl Default for App {
             dir_buffer:"".to_string(),
             ext_buffer:"".to_string(),
 
-            file_dir_map:HashMap::from([("Audio".to_string(),vec!["mp3".to_string(),"wav".to_string()])]),
+            file_dir_map:BTreeMap::from([("Audio".to_string(),vec!["mp3".to_string(),"wav".to_string()])]),
             focused_field: FocusedField::Directory,
             exit: false,
         }
