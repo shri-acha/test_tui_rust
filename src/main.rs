@@ -17,6 +17,8 @@ enum FocusedField{
     Directory,
     MiniDirectory,
     MiniExtension,
+    LwrMiniButton,
+    UpprMiniButton,
 }
 
 struct App {
@@ -35,11 +37,14 @@ impl App {
         frame.render_widget(self,frame.area());
     }
     fn run(&mut self,terminal: &mut ratatui::DefaultTerminal) -> io::Result<()>{
-        loop {
+
+        loop{
+
             terminal.draw(|frame| self.draw(frame))?;
             if let Ok(_) = self.handle_event() {
                 break Ok(());
             }
+
         }
     }
     fn handle_event(&mut self)->io::Result<()>{
@@ -69,6 +74,12 @@ impl App {
                             self.focused_field = FocusedField::MiniExtension;
                         }
                         FocusedField::MiniExtension => {
+                            self.focused_field = FocusedField::UpprMiniButton;
+                        }
+                        FocusedField::UpprMiniButton => {
+                            self.focused_field = FocusedField::LwrMiniButton;
+                        }
+                        FocusedField::LwrMiniButton => {
                             self.focused_field = FocusedField::Directory;
                         }
 
@@ -121,15 +132,73 @@ impl App {
                     }
                 }
             }
+            FocusedField::UpprMiniButton => {
+                match key_code{
+                    crossterm::event::KeyCode::Enter=> {
+                        self.emit_type_extns();
+                    }
+                    _=>{ 
+                        //Don't require any more bindings (as of now)
+                    }
+                }
+            }
+            FocusedField::LwrMiniButton => {
+                match key_code{
+                    crossterm::event::KeyCode::Enter=> {
+                        self.file_dir_map.remove();
+                    }
+                    _=>{ 
+                        //Don't require any more bindings (as of now)
+                    }
+                }
+            }
 
         }
     }
+    
+    // emit the buffers to the actual hashmap
+    fn emit_type_extns(&mut self){
+        let transformed_buffer : Vec<String> = self.ext_buffer.split(",").map(|e| e.to_string()).collect();
+        self.file_dir_map.insert(self.dir_buffer.clone(),transformed_buffer);
+    }
+
 }
 
 impl Widget for &mut App {
     fn render(self,area: Rect,buf: &mut ratatui::buffer::Buffer)->(){
 
-        // title 
+        let mut list_items :Vec<String> = vec![];
+        let dir_ext_vec: Vec<_> = self.file_dir_map.clone().into_iter().collect::<Vec<_>>();
+
+        //styles
+        //
+
+        let mut monitoring_dir_field_border_focus = ratatui::widgets::BorderType::Plain;
+        let mut mext_field_border_focus = ratatui::widgets::BorderType::Plain;
+        let mut mtype_field_border_focus = ratatui::widgets::BorderType::Plain;
+        let mut l_mbutton_border_focus = ratatui::widgets::BorderType::Plain;
+        let mut u_mbutton_border_focus = ratatui::widgets::BorderType::Plain;
+
+        match self.focused_field {
+            FocusedField::Directory=>{
+                monitoring_dir_field_border_focus = ratatui::widgets::BorderType::Double;
+            }
+            FocusedField::MiniExtension=>{
+                mext_field_border_focus = ratatui::widgets::BorderType::Double;
+            }
+            FocusedField::MiniDirectory=>{
+                mtype_field_border_focus = ratatui::widgets::BorderType::Double;
+            }
+            FocusedField::LwrMiniButton=>{
+                l_mbutton_border_focus = ratatui::widgets::BorderType::Double;
+            }
+            FocusedField::UpprMiniButton=>{
+                u_mbutton_border_focus = ratatui::widgets::BorderType::Double;
+            }
+        }
+
+        // titles
+        //
         let main_title = Line::from (Span::styled("  DIRMON  ",Style::default()
                 .add_modifier(Modifier::BOLD)
                 .fg(Color::Green)))
@@ -151,12 +220,14 @@ impl Widget for &mut App {
             .centered();
 
 
-        let mut list_items :Vec<String> = vec![];
-        let dir_ext_vec: Vec<_> = self.file_dir_map.clone().into_iter().collect::<Vec<_>>();
+
 
         // monitoring-dir 
         let monitoring_dir= Paragraph::new(self.monitoring_dir.clone())
-            .block(Block::new().borders(ratatui::widgets::Borders::ALL).border_type(ratatui::widgets::BorderType::Rounded).title(inp_field_monitoring_dir_title))
+            .block(Block::new()
+                .borders(ratatui::widgets::Borders::ALL)
+                .border_type(monitoring_dir_field_border_focus)
+                .title(inp_field_monitoring_dir_title))
             .centered();
 
         // block 
@@ -171,7 +242,9 @@ impl Widget for &mut App {
             list_items.push(format!("{} {}",key,extension_string));
         }
         let list = List::new(list_items)
-                    .block(Block::new().borders(ratatui::widgets::Borders::ALL).border_type(ratatui::widgets::BorderType::Rounded))
+                    .block(Block::new()
+                        .borders(ratatui::widgets::Borders::ALL)
+                        .border_type(ratatui::widgets::BorderType::Rounded))
                     .highlight_symbol(">>>");
 
         // I/O
@@ -181,18 +254,29 @@ impl Widget for &mut App {
         let lower_inner_block = Block::bordered()
                     .border_type(ratatui::widgets::BorderType::Rounded);
 
-        let type_field = Paragraph::new(self.dir_buffer.clone())
+        let mtype_field = Paragraph::new(self.dir_buffer.clone())
             .block(Block::new()
                 .borders(ratatui::widgets::Borders::ALL)
-                .border_type(ratatui::widgets::BorderType::Rounded)
+                .border_type(mtype_field_border_focus)
                 .title(inp_mfield_types_title))
             .centered();
 
-        let ext_field = Paragraph::new(self.ext_buffer.clone())
+        let mext_field = Paragraph::new(self.ext_buffer.clone())
             .block(Block::new()
                 .borders(ratatui::widgets::Borders::ALL)
-                .border_type(ratatui::widgets::BorderType::Rounded)
+                .border_type(mext_field_border_focus)
                 .title(inp_mfield_extns_title))
+            .centered();
+
+        let l_mbutton = Paragraph::new("Remove".to_string())
+            .block(Block::new()
+                .borders(ratatui::widgets::Borders::ALL)
+                .border_type(l_mbutton_border_focus))
+            .centered();
+        let u_mbutton = Paragraph::new("Add".to_string())
+            .block(Block::new()
+                .borders(ratatui::widgets::Borders::ALL)
+                .border_type(u_mbutton_border_focus))
             .centered();
 
         //finalizing block
@@ -200,27 +284,49 @@ impl Widget for &mut App {
             .direction(Direction::Vertical)
             .margin(1)
             .constraints([
-                Constraint::Percentage(10), // monitoring directory
-                Constraint::Percentage(70), // type-extension binding 
-                Constraint::Percentage(20), // edit directory 
+                Constraint::Percentage(25), // monitoring directory
+                Constraint::Percentage(50), // type-extension binding and buttons
+                Constraint::Percentage(25), // edit directory 
             ])
             .split(main_block.inner(area));
+        let middle_inner_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .margin(1)
+            .constraints([
+                Constraint::Percentage(70), // type-extension binding
+                Constraint::Percentage(30), // buttons
+            ])
+            .split(inner_chunks[1]);
 
 
 
-        let lower_inner_chunk = Layout::default()
+        let lower_inner_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .margin(1)
             .constraints([
                 Constraint::Percentage(40), // monitoring directory
-                Constraint::Percentage(80), // type-extension binding 
+                Constraint::Percentage(60), // type-extension binding 
             ])
             .split(inner_chunks[2]);
 
+        let middle_inner_button_chunks= Layout::default()
+            .direction(Direction::Vertical)
+            .margin(1)
+            .constraints([
+                Constraint::Percentage(50), // top button 
+                Constraint::Percentage(50), // bottom button
+            ])
+            .split(middle_inner_chunks[1]);
+
         monitoring_dir.render(inner_chunks[0],buf);
+        mtype_field.render(lower_inner_chunks[0],buf);
+        mext_field.render(lower_inner_chunks[1],buf);
+
+        l_mbutton.render(middle_inner_button_chunks[1],buf);
+        u_mbutton.render(middle_inner_button_chunks[0],buf);
+
+
         list.render(inner_chunks[1], buf);
-        type_field.render(lower_inner_chunk[0],buf);
-        ext_field.render(lower_inner_chunk[1],buf);
         main_block.render(area,buf);
 
     }
